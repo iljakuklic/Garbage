@@ -70,3 +70,33 @@ showCompsAbs = concatMap ('/':)
 
 instance Show Path where
   show p = "path " ++ show (showPath p)
+
+-- A regular semigroup
+-- https://en.wikipedia.org/wiki/Regular_semigroup
+class RegularSemigroup a where
+  -- An associative binary operation
+  (</>) :: a -> a -> a
+  -- A pseudo-inverse and an inverse.
+  -- These need not be unique, hence the indefinite article.
+  aPseudoInverse :: a -> a
+  aPseudoInverse = anInverse
+  anInverse :: a -> a
+  anInverse x = let px = aPseudoInverse x in px </> x </> px
+
+-- Inverse and pseudo-inverse laws:
+check_aPseudoInverse, check_anInverse :: (Eq a, RegularSemigroup a) => a -> Bool
+check_aPseudoInverse a = (a </> aPseudoInverse a </> a) == a
+check_anInverse a = let b = anInverse a
+                    in (a </> b </> a) == a && (b </> a </> b) == b
+
+-- Path is a regular semigroup
+instance RegularSemigroup Path where
+  (</>) = mappend
+  -- Any absolute path is an inverse of an absolute path
+  -- There seem to be two sensibly looking options:
+  --  1) The original path
+  --  2) The root path
+  anInverse p@(Abs _) = p
+  -- Relative inverse has to undo level-ups and components
+  -- The path component names may (must?) be fabricated, we use numbers here.
+  anInverse (Rel n cs) = Rel (length cs) [show d | d <- [1..n]]
