@@ -1,5 +1,15 @@
+*
+!*.*
+!*/
 .*.swp
 *~
 *.bak
 *.o
 *.pdf
+*.log
+*.hi
+*.agdai
+*.log
+*.aux
+*.o
+*.ibc
