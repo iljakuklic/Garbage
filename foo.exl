@@ -1,0 +1,47 @@
+-- Generic functions
+id : U => [T] T => T
+   = [T x] x;
+
+const : U => [A] U => [B] A => B => A
+      = [A B x y] x;
+
+-- Booleans
+Bool = .{ true false };
+
+and : Bool => Bool => Bool
+    = { true: id Bool; false: [_] .false; };
+or  : Bool => Bool => Bool
+    = { true: [_] .true; false: id Bool; };
+not : Bool => Bool
+    = { true: .false; false: .true; };
+xor : Bool => Bool => Bool
+    = { false: id Bool; true: not; };
+
+-- Data types
+Day = .{ mon tue wed thu fri sat sun };
+Planet = .{ Mercury Venus Earth Mars };
+
+nextDay : Day => Day
+        = {
+			mon: .tue;
+			tue: .wed;
+			wed: .thu;
+			thu: .fri;
+			fri: .sat;
+			sat: .sun;
+			sun: .mon;
+		};
+isWeekend : Day => Bool
+          = {
+              mon: .false;
+              tue: .false;
+              wed: .false;
+              thu: .false;
+              fri: .false;
+              sat: .true;
+              sun: .true;
+          };
+
+-- Random stuff
+foo : Bool => [x] { true: Day; false: Planet; } x
+    = { true: .tue; false: .Venus; };
