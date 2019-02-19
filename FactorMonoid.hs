@@ -115,6 +115,40 @@ pattern (:>:) :: FactorMonoid m => m -> Factor m -> m
 pattern xs :>: x <- (factorR -> Just (xs, x))
   where xs :>: x = xs <> singleton x
 
+-- Operations, suffixed 'F' to disambiguate from standard functions
+
+foldMapF :: (FactorMonoid m, Monoid n) => (Factor m -> n) -> m -> n
+foldMapF f = mconcat . map f . factors
+
+monoFoldMapF :: FactorMonoid m => (Factor m -> m) -> m -> m
+monoFoldMapF = foldMapF
+
+mapF :: (FactorMonoid m, FactorMonoid n) => (Factor m -> Factor n) -> m -> n
+mapF f = foldMapF (singleton . f)
+
+monoMapF :: FactorMonoid m => (Factor m -> Factor m) -> m -> m
+monoMapF = mapF
+
+toListF = factors
+lengthF = length . factors
+sumF = getSum . foldMapF Sum
+productF = getProduct . foldMapF Product
+filterF p = monoFoldMapF (checkF p)
+anyF p = getAny . foldMapF (Any . p)
+allF p = getAll . foldMapF (All . p)
+noneF p = not . anyF p
+elemF x = anyF (== x)
+findF p = getFirst . foldMapF (First . check p)
+concatF = foldMapF id
+checkF p x = if p x then singleton x else mempty
+
+traverseF :: (Monoid a, FactorMonoid m, Applicative f)
+          => (Factor m -> f a) -> m -> f a
+traverseF f = runAct . foldMapF (Act . f)
+forF = flip traverseF
+
+isNullDefault = isNothing . factorL
+
 -- ***** HELPERS
 
 check :: (a -> Bool) -> a -> Maybe a
@@ -136,3 +170,9 @@ primeFactorsP x p = maybe next onPrime (toPrime p) where
   (x', m) = x `divMod` p
   onPrime p' = if m == 0 then p' : primeFactorsP x' p else next
 primeFactors x = primeFactorsP x 2
+
+-- Effectful actions as monoids
+newtype Act f a = Act { runAct :: f a } deriving (Functor, Applicative)
+instance (Applicative f, Monoid a) => Monoid (Act f a) where
+  mempty = pure mempty
+  mappend (Act a) (Act b) = Act (mappend <$> a <*> b)
