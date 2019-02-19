@@ -8,6 +8,7 @@ import Data.Monoid
 import Data.Maybe
 import Data.List (genericReplicate)
 import qualified Data.Map as M
+import qualified Data.List as L
 
 -- Monoid with decidable mempty testing
 -- Laws:
@@ -48,7 +49,7 @@ pattern Null <- (isNull -> True)
 --   factors (singleton x) = [x]
 --   (more...)
 class NullMonoid m => FactorMonoid m where
-  -- type of a prime factor fir this monoid
+  -- type of a prime factor for this monoid
   type Factor m :: *
 
   -- Convert a prime factor into monoid representation,
@@ -57,6 +58,19 @@ class NullMonoid m => FactorMonoid m where
 
   -- Extract prime factors from the monoid
   factors :: m -> [Factor m]
+  factors = L.unfoldr factorL
+
+  -- Separate the leftmost factor
+  factorL :: m -> Maybe (Factor m, m)
+  factorL a = case factors a of
+    (x:xs) -> Just (x, mconcat (map singleton xs))
+    [] -> Nothing
+
+  -- Separate the leftmost factor
+  factorR :: m -> Maybe (m, Factor m)
+  factorR a = case reverse (factors a) of
+    (x:xs) -> Just (mconcat (map singleton (reverse xs)), x)
+    [] -> Nothing
 
 -- ***** INSTANCES
 
@@ -64,7 +78,8 @@ class NullMonoid m => FactorMonoid m where
 instance FactorMonoid [a] where
   type Factor [a] = a
   singleton = pure
-  factors = id
+  factorL (x:xs) = Just (x, xs)
+  factorL [] = Nothing
 
 -- Break a map into its elements
 instance Ord k => FactorMonoid (M.Map k v) where
@@ -85,6 +100,18 @@ instance Integral a => FactorMonoid (Sum a) where
   factors = flip genericReplicate () . getSum
 
 -- ***** OPERATIONS
+
+-- Convenience patterns for constructiong & deconstructing monoids
+
+infixr 5 :<:
+pattern (:<:) :: FactorMonoid m => Factor m -> m -> m
+pattern x :<: xs <- (factorL -> Just (x, xs))
+  where x :<: xs = singleton x <> xs
+
+infixl 5 :>:
+pattern (:>:) :: FactorMonoid m => m -> Factor m -> m
+pattern xs :>: x <- (factorR -> Just (xs, x))
+  where xs :>: x = xs <> singleton x
 
 -- ***** HELPERS
 
