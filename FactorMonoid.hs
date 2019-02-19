@@ -7,6 +7,7 @@
 
 import Data.Monoid
 import Data.Maybe
+import Data.Void
 import Data.List (genericReplicate)
 import qualified Data.Map as M
 import qualified Data.List as L
@@ -23,6 +24,7 @@ class Monoid m => NullMonoid m where
   isNull = (mempty ==)
 
 -- a bunch of instences
+instance NullMonoid ()
 instance NullMonoid Any
 instance NullMonoid All
 instance NullMonoid Ordering
@@ -33,6 +35,8 @@ instance Ord k => NullMonoid (M.Map k v) where isNull = M.null
 instance NullMonoid (Last a) where isNull = isNothing . getLast
 instance NullMonoid (First a) where isNull = isNothing . getFirst
 instance (NullMonoid m) => NullMonoid (Dual m) where isNull = isNull . getDual
+instance (NullMonoid m, NullMonoid n) => NullMonoid (m, n) where
+  isNull (x, y) = isNull x && isNull y
 -- instance (Finite a, NullMonoid b) => NullMonoid (a -> b) where ......
 
 -- Match mempty using the Null view pattern synonym
@@ -75,6 +79,12 @@ class NullMonoid m => FactorMonoid m where
 
 -- ***** INSTANCES
 
+-- Trivial unit instance
+instance FactorMonoid () where
+  type Factor () = Void
+  singleton = absurd
+  factors () = []
+
 -- Factorize a list into its elements
 instance FactorMonoid [a] where
   type Factor [a] = a
@@ -86,6 +96,8 @@ instance Ord k => FactorMonoid (M.Map k v) where
   type Factor (M.Map k v) = (k, v)
   singleton = uncurry M.singleton
   factors = M.toList
+  factorL = M.minViewWithKey
+  factorR = fmap (\(a, b) -> (b, a)) . M.maxViewWithKey
 
 -- Factorize the product monoid
 instance Integral a => FactorMonoid (Product a) where
@@ -99,7 +111,32 @@ instance Integral a => FactorMonoid (Sum a) where
   singleton () = 1
   factors = flip genericReplicate () . getSum
 
--- TODO unit, pairs, dual, first, last, any, all, ordering
+-- First monoid
+instance FactorMonoid (First a) where
+  type Factor (First a) = a
+  singleton = First . Just
+  factors = maybeToList . getFirst
+
+-- Any monoid
+instance FactorMonoid Any where
+  type Factor Any = ()
+  singleton () = Any True
+  factors (Any True) = [()]
+  factors (Any False) = []
+
+-- Dual monoid reverses the operation
+instance FactorMonoid m => FactorMonoid (Dual m) where
+  type Factor (Dual m) = Factor m
+  singleton = Dual . singleton
+  factors = reverse . factors . getDual
+  factorL = fmap swap . factorR
+  factorR = fmap swap . factorL
+
+-- Factorize a pair, componentwise
+instance (FactorMonoid m, FactorMonoid n) => FactorMonoid (m, n) where
+  type Factor (m, n) = Either (Factor m) (Factor n)
+  singleton = either (\x -> (singleton x, mempty)) (\x -> (mempty, singleton x))
+  factors (a, b) = fmap Left (factors a) ++ fmap Right (factors b)
 
 -- ***** OPERATIONS
 
@@ -138,7 +175,7 @@ initF = fmap fst . factorR
 lastF = fmap snd . factorR
 
 reverseF :: FactorMonoid m => m -> m
-reverseF = getDual . foldMapF (Dual . singleton)
+reverseF = mapF id . Dual
 
 takeF n = withFactors (take n)
 dropF n = withFactors (drop n)
@@ -171,6 +208,8 @@ check :: (a -> Bool) -> a -> Maybe a
 check p x = if p x then Just x else Nothing
 checkM :: Monoid m => (m -> Bool) -> m -> m
 checkM p x = if p x then x else mempty
+
+swap (x, y) = (y, x)
 
 -- Wrapper around numbers that only contains prime numbers
 newtype Prime a = Prime { getPrime :: a } deriving (Eq, Ord, Show)
