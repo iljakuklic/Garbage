@@ -1,6 +1,7 @@
 {-# LANGUAGE NoMonomorphismRestriction, DefaultSignatures,
              PatternSynonyms, ViewPatterns,
-             TypeFamilies, GADTs #-}
+             TypeFamilies, GADTs, FlexibleContexts,
+             GeneralizedNewtypeDeriving #-}
 
 -- Inspired by monoid-subclasses and mono-traversable
 
@@ -78,8 +79,7 @@ class NullMonoid m => FactorMonoid m where
 instance FactorMonoid [a] where
   type Factor [a] = a
   singleton = pure
-  factorL (x:xs) = Just (x, xs)
-  factorL [] = Nothing
+  factors = id
 
 -- Break a map into its elements
 instance Ord k => FactorMonoid (M.Map k v) where
@@ -99,6 +99,8 @@ instance Integral a => FactorMonoid (Sum a) where
   singleton () = 1
   factors = flip genericReplicate () . getSum
 
+-- TODO unit, pairs, dual, first, last, any, all, ordering
+
 -- ***** OPERATIONS
 
 -- Convenience patterns for constructiong & deconstructing monoids
@@ -117,6 +119,8 @@ pattern xs :>: x <- (factorR -> Just (xs, x))
 
 check :: (a -> Bool) -> a -> Maybe a
 check p x = if p x then Just x else Nothing
+checkM :: Monoid m => (m -> Bool) -> m -> m
+checkM p x = if p x then x else mempty
 
 -- Wrapper around numbers that only contains prime numbers
 newtype Prime a = Prime { getPrime :: a } deriving (Eq, Ord, Show)
