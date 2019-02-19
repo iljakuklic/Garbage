@@ -129,6 +129,22 @@ mapF f = foldMapF (singleton . f)
 monoMapF :: FactorMonoid m => (Factor m -> Factor m) -> m -> m
 monoMapF = mapF
 
+withFactors :: FactorMonoid m => ([Factor m] -> [Factor m]) -> m -> m
+withFactors f = mconcat . map singleton . f . factors
+
+headF = fmap fst . factorL
+tailF = fmap snd . factorL
+initF = fmap fst . factorR
+lastF = fmap snd . factorR
+
+reverseF :: FactorMonoid m => m -> m
+reverseF = getDual . foldMapF (Dual . singleton)
+
+takeF n = withFactors (take n)
+dropF n = withFactors (drop n)
+takeWhileF p = withFactors (takeWhile p)
+dropWhileF p = withFactors (dropWhile p)
+
 toListF = factors
 lengthF = length . factors
 sumF = getSum . foldMapF Sum
