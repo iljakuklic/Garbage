@@ -1,5 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, LambdaCase, OverloadedStrings,
-             FlexibleInstances, FlexibleContexts, GeneralizedNewtypeDeriving #-}
+             FlexibleInstances, FlexibleContexts, GeneralizedNewtypeDeriving,
+             TupleSections #-}
 
 import Data.Monoid
 import Data.Text as T
@@ -8,6 +9,7 @@ import Control.Monad.Writer
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 import GHC.Exts(IsString(..))
 
 newtype LS = LS [Text] deriving (Eq, Ord, Show, Monoid)
@@ -30,10 +32,10 @@ getName (Name n) = n
 
 type Env = M.Map Name LS
 
-expand :: Env -> LS -> Writer [Text] LS
-expand env = fmap (LS . mconcat) . traverse get . getLS
-  where get n = maybe (mempty <$ err n) (pure . getLS) (M.lookup (Name n) env)
-        err n = tell ["Undefined var: " <> n]
+expand :: Env -> LS -> (S.Set Name, LS)
+expand env = foldMap get . getLS
+  where get n = maybe (err n) (mempty,) (M.lookup (Name n) env)
+        err n = (S.singleton (Name n), mempty)
 
 data StrPat = StrPat {
     strPatInit :: Text,
