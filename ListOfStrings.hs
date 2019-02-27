@@ -1,9 +1,10 @@
 {-# LANGUAGE NoMonomorphismRestriction, LambdaCase, OverloadedStrings,
-             FlexibleInstances, GeneralizedNewtypeDeriving #-}
+             FlexibleInstances, FlexibleContexts, GeneralizedNewtypeDeriving #-}
 
 import Data.Monoid
 import Data.Text as T
 import Control.Applicative
+import Control.Monad.Writer
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -29,10 +30,10 @@ getName (Name n) = n
 
 type Env = M.Map Name LS
 
-expand :: Env -> LS -> Either Text LS
+expand :: Env -> LS -> Writer [Text] LS
 expand env = fmap (LS . mconcat) . traverse get . getLS
-  where get n = maybe (err n) (Right . getLS) (M.lookup (Name n) env)
-        err n = Left ("Undefined var: " <> n)
+  where get n = maybe (mempty <$ err n) (pure . getLS) (M.lookup (Name n) env)
+        err n = tell ["Undefined var: " <> n]
 
 data StrPat = StrPat {
     strPatInit :: Text,
