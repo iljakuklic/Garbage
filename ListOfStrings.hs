@@ -1,6 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, LambdaCase, OverloadedStrings,
              FlexibleInstances, FlexibleContexts, GeneralizedNewtypeDeriving,
-             TupleSections #-}
+             TupleSections, OverloadedLists, TypeFamilies #-}
 
 import Data.Monoid
 import Data.Text as T
@@ -10,7 +10,7 @@ import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
-import GHC.Exts(IsString(..))
+import GHC.Exts(IsString(..), IsList(..))
 
 newtype LS = LS [Text] deriving (Eq, Ord, Show, Monoid)
 getLS (LS x) = x
@@ -26,6 +26,10 @@ instance Num LS where
 
 instance IsString LS where
   fromString = mkLS . T.pack
+instance IsList LS where
+  type Item LS = Text
+  fromList = LS
+  toList = getLS
 
 newtype Name = Name Text deriving (Eq, Ord, Show)
 getName (Name n) = n
