@@ -29,8 +29,10 @@ instance Real APFloat where
 instance Fractional APFloat where
   recip (APFloat 1 e) = APFloat 1 (-e)
   recip x = error "recip: not implemented"
-  fromRational r | numerator r == 1 && denominator r == 2 = APFloat 1 (-1)
-  fromRational r = error "fromRational: not implemented"
+  fromRational r | denominator r == 1 = APFloat (numerator r) 0
+  fromRational r = if mod (denominator r) 2 == 0
+    then let APFloat m e = fromRational (2 * r) in APFloat m (pred e)
+    else let prec = lg2 (denominator r) in APFloat (round (r * 2^(negate prec))) prec
 
 instance RealFrac APFloat where
   properFraction (APFloat m e) | e >= 0
