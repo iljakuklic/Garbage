@@ -1,7 +1,7 @@
-{-# LANGUAGE LambdaCase, ViewPatterns #-}
+{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings #-}
 
-import Data.Set as S
-import Data.Map as M
+import qualified Data.Set as S
+import qualified Data.Map as M
 import Data.Foldable
 import Data.Traversable
 import Data.Monoid hiding (Alt)
@@ -13,6 +13,9 @@ data RE a
   | Alt (S.Set (RE a))  -- Choice. Not a singleton, flat
   | Star (RE a)         -- Closure. Not trivial (empty or eps)
   deriving (Eq, Ord, Show)
+
+instance Semigroup (RE a) where
+  (<>) = mappend
 
 instance Monoid (RE a) where
   mempty = eps
@@ -81,7 +84,7 @@ diffs (Seq (r:rs)) =
 diffs (Alt as) = M.unionsWith alt2 [ diffs a | a <- S.toList as ]
 diffs sre@(Star re) = diffs (seq [re, sre])
 
-digit = oneOf ['0'..'9']
+digit = oneOf "0123456789"
 re055 = alt [ oneOf "01234" <> digit, one '5' <> oneOf "012345" ]
 re255 = alt [ oneOf ['1'..'9'] <> opt digit
             , one '1' <> digit <> digit
