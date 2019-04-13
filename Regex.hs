@@ -1,9 +1,10 @@
-{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, ViewPatterns, OverloadedStrings, GADTs #-}
 
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Foldable
 import Data.Traversable
+import Data.String
 import Data.Monoid hiding (Alt)
 import Prelude hiding (seq)
 
@@ -12,7 +13,7 @@ data RE a
   | Seq [RE a]          -- Sequence. Not a singleton, flat
   | Alt (S.Set (RE a))  -- Choice. Not a singleton, flat
   | Star (RE a)         -- Closure. Not trivial (empty or eps)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 instance Semigroup (RE a) where
   (<>) = mappend
@@ -20,6 +21,12 @@ instance Semigroup (RE a) where
 instance Monoid (RE a) where
   mempty = eps
   mappend a b = seq [a, b]
+
+instance (a ~ Char) => IsString (RE a) where
+  fromString = str
+
+instance (a ~ Char) => Show (RE a) where
+  show = show . showRE
 
 one :: a -> RE a
 one = One
@@ -92,9 +99,20 @@ re255 = alt [ oneOf ['1'..'9'] <> opt digit
 redot255 = re255 <> star (one '.' <> re255)
 reip4 = re255 <> mconcat (replicate 3 (one '.' <> re255))
 re1 = star (opt (str "ab") <> opt (str "cd") <> str "ef")
+bla = star (str "bla")
 
+isOne (One _) = True
+isOne _ = False
 showRE (One x) = [x]
 showRE (Seq res) = concatMap showRE res
-showRE (Alt res) | S.null res = "!!!"
-showRE (Alt res) = "(" ++ drop 1 (concat [ '|' : showRE r | r <- S.toList res ]) ++ ")"
+showRE (Alt res0) =
+  let (ones, res) = S.partition isOne res0
+      onestr = "[" ++ [ c | One c <- toList ones ] ++ "]"
+      resstr = drop 1 (concat [ '|' : showRE r | r <- S.toList res ])
+      str = case (S.null ones, S.null res) of
+         (_,     True)  -> onestr
+         (True,  False) -> "(" ++ resstr ++ ")"
+         (False, False) -> "(" ++ resstr ++ "|" ++ onestr ++ ")"
+  in str
 showRE (Star re) = "(" ++ showRE re ++ ")*"
+printRE = putStrLn . showRE
