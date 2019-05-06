@@ -43,9 +43,11 @@ constraint forall (p in 1..njoints) (
   )
 );
 
-% Start arbitrarily at position one with the first cube.
+% Arbitrarily set positions of some cubes.
 % This removes some symmetric solutions.
 constraint pos[1] = 1;
+constraint pos[2] = 2;
+constraint pos[4] = 6;
 
 solve satisfy;
 
