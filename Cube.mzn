@@ -39,12 +39,13 @@ constraint forall (p in 1..ninner where types[p] == T) (delta[p] != delta[p+1]);
 % Avoid row/coumn overflow.
 constraint forall (p in 1..njoints) (
   exists (a in axis_delta) (
-    ((pos[p]-1) div (3*a) = (pos[p+1]-1) div (3*a) /\ pos[p] mod a = pos[p+1] mod a)
+    (pos[p]-1) div (side * a) = (pos[p+1]-1) div (side * a) /\
+    (pos[p] mod a = pos[p+1] mod a)
   )
 );
 
 % Arbitrarily set positions of some cubes.
-% This removes some symmetric solutions.
+% This removes symmetric solutions.
 constraint pos[1] = 1;
 constraint pos[2] = 2;
 constraint pos[4] = 6;
