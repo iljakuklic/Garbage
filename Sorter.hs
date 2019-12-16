@@ -7,6 +7,7 @@
 import Data.Array.ST
 import Data.Array.Base
 import Data.Foldable
+import Data.Maybe
 import Data.Monoid
 import Control.Applicative
 import Control.Monad
@@ -123,17 +124,27 @@ bubbleSortImpl beg end = do
         Just sw -> bubbleSortImpl beg (sw - 1)
         Nothing -> return ()
 
+findMinIdx cur beg end | beg > end = return cur
+findMinIdx cur beg end = do
+    r <- cmpAt cur beg
+    findMinIdx (if r == GT then beg else cur) (succ beg) end
+
+selectSort beg end = do
+    for_ [beg..end] $ \i -> do
+        minIdx <- findMinIdx i (succ i) end
+        when (minIdx /= i) (swapAt i minIdx)
+
 noSort _ _ = return ()
 
 
 --------------------------------------------------------------------
 
-vizArray :: Int -> Int -> [(Int, Float)] -> G.Picture
-vizArray numBars maxVal entries = pic
+drawBars :: Int -> Int -> [(Float, Int)] -> G.Picture
+drawBars numBars maxVal entries = pic
   where
     rect :: Int -> Float -> G.Picture
     rect ht x = G.rectangleUpperSolid 0.6 (fromIntegral ht)
-    bar ht x = G.translate (x + 0.5) 0 (rect ht x)
+    bar x ht = G.translate (x + 0.5) 0 (rect ht x)
     maxHt = fromIntegral maxVal :: Float
     width = fromIntegral numBars :: Float
     pic'' = foldMap (uncurry bar) entries
@@ -154,40 +165,71 @@ data AnimState = AnimState {
     asActions :: [AnAction]
   }
 
-drawBars :: G.Color -> Int -> Int
-         -> (Float, Float) -> [(Int, Float)] -> G.Picture
-drawBars clr numBars maxVal (sx, sy) entries
-    = G.color clr (G.scale (0.45 * sx) (0.40 * sy)
-              (vizArray numBars maxVal entries))
-
-drawState :: (Float, Float) -> [Int] -> AnimState -> G.Picture
-drawState dim vals (AnimState _cd ord (AnAction (SwapAt i j) : _)) = statBars
+drawStaticBars :: (Idx -> Bool) -> [(Idx, Int)] -> G.Picture
+drawStaticBars pred entries = drawBars numBars maxVal barEntries
   where
-    statEntries = [ (val, fromIntegral idx)
-                  | (val, idx) <- zip vals ord, idx /= i, idx /= j]
-    statBars = drawBars G.orange (length vals) (maximum vals) dim statEntries
-drawState dim vals ste = drawBars G.orange (length vals) (maximum vals) dim ents
-  where ents = zip vals (fmap fromIntegral (asOrder ste))
+    numBars = length entries
+    maxVal = maximum (fmap snd entries)
+    toBar (idx, val) = (fromIntegral idx :: Float, val)
+    barEntries = (fmap toBar (filter (pred . fst) entries))
+
+only idxs idx = idx `elem` idxs
+
+drawStaticState :: [Int] -> AnimState -> (Idx -> Bool) -> G.Picture
+drawStaticState vals ste sel = drawStaticBars sel (zip (asOrder ste) vals)
+
+drawHighlight :: [Int] -> AnimState -> (Idx -> Bool) -> G.Color -> G.Picture
+drawHighlight vals ste p clr
+  = G.color G.orange (drawStaticState vals ste (not . p))
+  <> G.color clr (drawStaticState vals ste p)
+
+drawState :: [Int] -> AnimState -> G.Picture
+drawState vals ste@(AnimState to ord (AnAction (SwapAt i j) : _)) = pic
+  where
+    pic = orig <> swapping
+    orig = G.color G.orange (drawStaticState vals ste (not . only [i, j]))
+    swapping = G.color G.red (drawBars numBars maxVal swEntries)
+    numBars = length vals
+    maxVal = maximum vals
+    valOf idx = fromJust (lookup idx (zip ord vals))
+    (xi0, xj0) = (fromIntegral i, fromIntegral j) :: (Float, Float)
+    lerp t = (1.0 - t) * xi0 + t * xj0
+    swEntries = [(lerp (1.0 - to), valOf i), (lerp to, valOf j)]
+
+drawState vals ste@(AnimState _ _ (AnAction (CmpAt i j) : _))
+  = drawHighlight vals ste (only [i,j]) G.red
+drawState vals ste = G.color G.orange (drawStaticState vals ste (const True))
+
+drawView :: (Float, Float) -> [Int] -> AnimState -> G.Picture
+drawView (sx, sy) vals ste
+    = G.scale (0.45 * sx) (0.40 * sy) (drawState vals ste)
 
 actionDuration :: AnAction -> Float
 actionDuration (AnAction (PeekAt _)) = 0.01
-actionDuration (AnAction (SwapAt _ _)) = 0.5
-actionDuration (AnAction (CmpAt _ _)) = 0.3
+actionDuration (AnAction (SwapAt i j)) = 0.1 * (max 3 (min dist 10))
+  where dist = abs (fromIntegral j - fromIntegral i) :: Float
+actionDuration (AnAction (CmpAt _ _)) = 0.2
 
 updateState :: Float -> AnimState -> AnimState
 updateState _dt ste@(AnimState _ _ []) = ste
 updateState dt ste@(AnimState p ord (a:acts)) = next
   where
+    dur = actionDuration a
     dp = dt / actionDuration a
-    next = if dp < p
+    next =
+      if dur <= 0.0
+        then updateState dt (AnimState p ord acts)
+        else
+           if dp < p
              then ste { asCountdown = asCountdown ste - dp }
              else AnimState 1.0 (updateOrder a ord) acts
 
 main :: IO ()
 main = do
-    let ary = [34,45,27,11,55,30,39,40,41,22]
-    let (_, _, acts) = runSort bubbleSort (mkArray ary)
-    let size@(sizex, sizey) = (400, 300)
+    let ary = [34,45,2,27,11,55,30,39,40,41,22,44,22,37,43,52,53,54,55,5]
+    --let ary = take 25 (cycle [10,9..1])
+    let (_, _, acts) = runSort selectSort (mkArray ary)
+    let size@(sizex, sizey) = (800, 600)
     let win = G.InWindow "Sorter" size (100, 100)
     let initSte = AnimState {
         asCountdown = 1.0,
@@ -195,4 +237,4 @@ main = do
         asActions = acts
       }
     let run = G.simulate win (G.greyN 0.15) 50
-    run initSte (drawState size ary) (const updateState)
+    run initSte (drawView size ary) (const updateState)

@@ -50,6 +50,8 @@ constraint pos[1] = 1;
 constraint pos[2] = 2;
 constraint pos[4] = 6;
 
+constraint pos[12] = 14;
+
 solve satisfy;
 
 output [show(pos)];
