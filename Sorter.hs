@@ -7,6 +7,7 @@
 import Data.Array.ST
 import Data.Array.Base
 import Data.Foldable
+import Data.List (partition)
 import Data.Maybe
 import Data.Monoid
 import Control.Applicative
@@ -194,7 +195,8 @@ drawBarsWithHighlight ord vals hlx
 drawState :: [Int] -> AnimState -> G.Picture
 drawState vals ste@(AnimState to ord (AnAction (SwapAt i j) : _)) = bars
   where
-    bars = drawBars [ Bar (pos ix) y (hl ix) | (ix, y) <- zip ord vals ]
+    bars = drawBars [ Bar (pos ix) y (hl ix) | (ix, y) <- static ++ swapping ]
+    (swapping, static) = partition (flip elem [i, j] . fst) (zip ord vals)
     lerp t = (1.0 - t) * (fromIntegral i) + t * (fromIntegral j)
     hl = highlight [i, j]
     pos :: Idx -> Float
