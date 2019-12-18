@@ -139,17 +139,25 @@ noSort _ _ = return ()
 
 --------------------------------------------------------------------
 
-drawBars :: Int -> Int -> [(Float, Int)] -> G.Picture
-drawBars numBars maxVal entries = pic
+-- Visual representation of a bar.
+data Bar = Bar {
+    barPos :: Float,     -- Bar position, standard spacing between bars = 1.0
+    barHeight :: Int,    -- Bar height
+    barColor :: G.Color  -- Bar color
+  } deriving (Show)
+
+drawBar :: Bar -> G.Picture
+drawBar (Bar x ht c) = G.translate (x + 0.5) 0 rect
   where
-    rect :: Int -> Float -> G.Picture
-    rect ht x = G.rectangleUpperSolid 0.6 (fromIntegral ht)
-    bar x ht = G.translate (x + 0.5) 0 (rect ht x)
-    maxHt = fromIntegral maxVal :: Float
-    width = fromIntegral numBars :: Float
-    pic'' = foldMap (uncurry bar) entries
-    pic' = G.scale (2 * recip width) (2 * recip maxHt) pic''
-    pic = G.translate (-1) (-1) pic'
+    rect = G.color c (G.rectangleUpperSolid 0.6 (fromIntegral ht))
+
+drawBars :: [Bar] -> G.Picture
+drawBars bars = G.translate (-1) (-1) picScaled
+  where
+    maxHt = fromIntegral (maximum (map barHeight bars)) :: Float
+    width = fromIntegral (length bars) :: Float
+    pic = foldMap drawBar bars
+    picScaled = G.scale (2 * recip width) (2 * recip maxHt) pic
 
 updateOrder :: AnAction -> [Idx] -> [Idx]
 updateOrder (AnAction (SwapAt i j)) = fmap updateIdx
@@ -165,6 +173,7 @@ data AnimState = AnimState {
     asActions :: [AnAction]
   }
 
+{-
 drawStaticBars :: (Idx -> Bool) -> [(Idx, Int)] -> G.Picture
 drawStaticBars pred entries = drawBars numBars maxVal barEntries
   where
@@ -172,33 +181,30 @@ drawStaticBars pred entries = drawBars numBars maxVal barEntries
     maxVal = maximum (fmap snd entries)
     toBar (idx, val) = (fromIntegral idx :: Float, val)
     barEntries = (fmap toBar (filter (pred . fst) entries))
+-}
 
 only idxs idx = idx `elem` idxs
 
-drawStaticState :: [Int] -> AnimState -> (Idx -> Bool) -> G.Picture
-drawStaticState vals ste sel = drawStaticBars sel (zip (asOrder ste) vals)
+highlight idxs idx = if idx `elem` idxs then G.red else G.orange
 
-drawHighlight :: [Int] -> AnimState -> (Idx -> Bool) -> G.Color -> G.Picture
-drawHighlight vals ste p clr
-  = G.color G.orange (drawStaticState vals ste (not . p))
-  <> G.color clr (drawStaticState vals ste p)
+drawBarsWithHighlight :: [Idx] -> [Int] -> [Idx] -> G.Picture
+drawBarsWithHighlight ord vals hlx
+  = drawBars [ Bar (fromIntegral x) h (highlight hlx x) | (x, h) <- zip ord vals ]
 
 drawState :: [Int] -> AnimState -> G.Picture
-drawState vals ste@(AnimState to ord (AnAction (SwapAt i j) : _)) = pic
+drawState vals ste@(AnimState to ord (AnAction (SwapAt i j) : _)) = bars
   where
-    pic = orig <> swapping
-    orig = G.color G.orange (drawStaticState vals ste (not . only [i, j]))
-    swapping = G.color G.red (drawBars numBars maxVal swEntries)
-    numBars = length vals
-    maxVal = maximum vals
-    valOf idx = fromJust (lookup idx (zip ord vals))
-    (xi0, xj0) = (fromIntegral i, fromIntegral j) :: (Float, Float)
-    lerp t = (1.0 - t) * xi0 + t * xj0
-    swEntries = [(lerp (1.0 - to), valOf i), (lerp to, valOf j)]
-
-drawState vals ste@(AnimState _ _ (AnAction (CmpAt i j) : _))
-  = drawHighlight vals ste (only [i,j]) G.red
-drawState vals ste = G.color G.orange (drawStaticState vals ste (const True))
+    bars = drawBars [ Bar (pos ix) y (hl ix) | (ix, y) <- zip ord vals ]
+    lerp t = (1.0 - t) * (fromIntegral i) + t * (fromIntegral j)
+    hl = highlight [i, j]
+    pos :: Idx -> Float
+    pos ix | ix == i = lerp (1.0 - to)
+    pos ix | ix == j = lerp to
+    pos ix = fromIntegral ix
+drawState vals (AnimState _ ord (AnAction (CmpAt i j) : _))
+  = drawBarsWithHighlight ord vals [i, j]
+drawState vals (AnimState _ ord _)
+  = drawBarsWithHighlight ord vals []
 
 drawView :: (Float, Float) -> [Int] -> AnimState -> G.Picture
 drawView (sx, sy) vals ste
@@ -210,18 +216,16 @@ actionDuration (AnAction (SwapAt i j)) = 0.1 * (max 3 (min dist 10))
   where dist = abs (fromIntegral j - fromIntegral i) :: Float
 actionDuration (AnAction (CmpAt _ _)) = 0.2
 
+progressIn a dt = dt / actionDuration a
+
 updateState :: Float -> AnimState -> AnimState
 updateState _dt ste@(AnimState _ _ []) = ste
-updateState dt ste@(AnimState p ord (a:acts)) = next
-  where
-    dur = actionDuration a
-    dp = dt / actionDuration a
-    next =
-      if dur <= 0.0
-        then updateState dt (AnimState p ord acts)
-        else if dp < p
-             then ste { asCountdown = asCountdown ste - dp }
-             else AnimState 1.0 (updateOrder a ord) acts
+updateState _dt ste@(AnimState _ _ (a:acts)) | actionDuration a <= 0.0
+  = ste { asActions = acts }
+updateState dt ste@(AnimState p ord (a:acts)) | progressIn a dt < p
+  = ste { asCountdown = asCountdown ste - progressIn a dt }
+updateState dt ste@(AnimState p ord (a:acts))
+  = AnimState 1.0 (updateOrder a ord) acts
 
 main :: IO ()
 main = do
