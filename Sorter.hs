@@ -150,7 +150,7 @@ data Bar = Bar {
 drawBar :: Bar -> G.Picture
 drawBar (Bar x ht c) = G.translate (x + 0.5) 0 rect
   where
-    rect = G.color c (G.rectangleUpperSolid 0.6 (fromIntegral ht))
+    rect = G.color c (G.rectangleUpperSolid 0.7 (fromIntegral ht))
 
 drawBars :: [Bar] -> G.Picture
 drawBars bars = G.translate (-1) (-1) picScaled
@@ -216,14 +216,14 @@ actionDuration :: AnAction -> Float
 actionDuration (AnAction (PeekAt _)) = 0.01
 actionDuration (AnAction (SwapAt i j)) = 0.1 * (max 3 (min dist 10))
   where dist = abs (fromIntegral j - fromIntegral i) :: Float
-actionDuration (AnAction (CmpAt _ _)) = 0.2
+actionDuration (AnAction (CmpAt _ _)) = 0.1
 
 progressIn a dt = dt / actionDuration a
 
 updateState :: Float -> AnimState -> AnimState
 updateState _dt ste@(AnimState _ _ []) = ste
-updateState _dt ste@(AnimState _ _ (a:acts)) | actionDuration a <= 0.0
-  = ste { asActions = acts }
+updateState dt ste@(AnimState _ _ (a:acts)) | actionDuration a <= 0.0
+  = updateState dt (ste { asActions = acts })
 updateState dt ste@(AnimState p ord (a:acts)) | progressIn a dt < p
   = ste { asCountdown = asCountdown ste - progressIn a dt }
 updateState dt ste@(AnimState p ord (a:acts))
