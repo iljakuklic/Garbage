@@ -195,18 +195,6 @@ data AnimState = AnimState {
     asActions :: [AnAction]
   }
 
-{-
-drawStaticBars :: (Idx -> Bool) -> [(Idx, Int)] -> G.Picture
-drawStaticBars pred entries = drawBars numBars maxVal barEntries
-  where
-    numBars = length entries
-    maxVal = maximum (fmap snd entries)
-    toBar (idx, val) = (fromIntegral idx :: Float, val)
-    barEntries = (fmap toBar (filter (pred . fst) entries))
--}
-
-only idxs idx = idx `elem` idxs
-
 highlight idxs idx = if idx `elem` idxs then G.red else G.orange
 
 drawBarsWithHighlight :: [Idx] -> [Int] -> [Idx] -> G.Picture
