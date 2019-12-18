@@ -7,7 +7,7 @@
 import Data.Array.ST
 import Data.Array.Base
 import Data.Foldable
-import Data.List (partition)
+import qualified Data.List as L
 import Data.Maybe
 import Data.Monoid
 import Control.Applicative
@@ -105,21 +105,27 @@ runSort sorter inAry = runST $ do
 mkArray :: IArray UArray e => [e] -> UArray Idx e
 mkArray elts = listArray (Idx 0, Idx (length elts - 1)) elts
 
-swapMinMax i j = do
+sort2 i j = do
     r <- cmpAt i j
     case r of
         GT -> swapAt i j >> return True
         _  -> return False
 
+sort3 i j k = do
+    sort2 i j
+    sort2 i k
+    sort2 j k
+    return ()
+
 bubbleSortSimple beg end = do
     for_ [end,end-1..2] $ \stop ->
         for_ [beg..(stop - 1)] $ \i ->
-            swapMinMax i (i + 1)
+            sort2 i (i + 1)
 
 bubbleSort beg end = bubbleSortImpl beg (end - 1)
 bubbleSortImpl beg end = do
     Last ii <- flip foldMap [beg..end] $ \i -> do
-        sw <- swapMinMax i (i + 1)
+        sw <- sort2 i (i + 1)
         return (Last (if sw then Just i else Nothing))
     case ii of
         Just sw -> bubbleSortImpl beg (sw - 1)
@@ -134,6 +140,21 @@ selectSort beg end = do
     for_ [beg..end] $ \i -> do
         minIdx <- findMinIdx i (succ i) end
         when (minIdx /= i) (swapAt i minIdx)
+
+partition i j piv | j >= piv = swapAt i piv >> return i
+partition i j piv = do
+    r <- cmpAt j piv
+    case r of
+        LT -> swapAt i j >> partition (i + 1) (j + 1) piv
+        _ -> partition i (j + 1) piv
+
+quickSort beg end | beg >= end = return ()
+quickSort beg end | beg + 1 == end = sort2 beg (beg + 1) >> return ()
+quickSort beg end | beg + 2 == end = sort3 beg (beg + 1) (beg + 2)
+quickSort beg end = do
+    mid <- partition beg beg end
+    quickSort beg (mid - 1)
+    quickSort (mid + 1) end
 
 noSort _ _ = return ()
 
@@ -196,7 +217,7 @@ drawState :: [Int] -> AnimState -> G.Picture
 drawState vals ste@(AnimState to ord (AnAction (SwapAt i j) : _)) = bars
   where
     bars = drawBars [ Bar (pos ix) y (hl ix) | (ix, y) <- static ++ swapping ]
-    (swapping, static) = partition (flip elem [i, j] . fst) (zip ord vals)
+    (swapping, static) = L.partition (flip elem [i, j] . fst) (zip ord vals)
     lerp t = (1.0 - t) * (fromIntegral i) + t * (fromIntegral j)
     hl = highlight [i, j]
     pos :: Idx -> Float
@@ -232,7 +253,7 @@ updateState dt ste@(AnimState p ord (a:acts))
 main :: IO ()
 main = do
     ary <- randomRIO (50, 80) >>= flip replicateM (randomRIO (10, 250))
-    let (_, _, acts) = runSort selectSort (mkArray ary)
+    let (_, _, acts) = runSort quickSort (mkArray ary)
     let size@(sizex, sizey) = (900, 600)
     let win = G.InWindow "Sorter" size (50, 50)
     let initSte = AnimState {
