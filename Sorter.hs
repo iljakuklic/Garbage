@@ -14,8 +14,8 @@ import Control.Monad
 import Control.Monad.ST
 import Control.Monad.Trans
 import Control.Monad.Trans.RWS
-
 import qualified Graphics.Gloss as G
+import System.Random
 
 type f ~> g = forall a . f a -> g a
 
@@ -219,18 +219,16 @@ updateState dt ste@(AnimState p ord (a:acts)) = next
     next =
       if dur <= 0.0
         then updateState dt (AnimState p ord acts)
-        else
-           if dp < p
+        else if dp < p
              then ste { asCountdown = asCountdown ste - dp }
              else AnimState 1.0 (updateOrder a ord) acts
 
 main :: IO ()
 main = do
-    let ary = [34,45,2,27,11,55,30,39,40,41,22,44,22,37,43,52,53,54,55,5]
-    --let ary = take 25 (cycle [10,9..1])
+    ary <- randomRIO (50, 80) >>= flip replicateM (randomRIO (10, 250))
     let (_, _, acts) = runSort selectSort (mkArray ary)
-    let size@(sizex, sizey) = (800, 600)
-    let win = G.InWindow "Sorter" size (100, 100)
+    let size@(sizex, sizey) = (900, 600)
+    let win = G.InWindow "Sorter" size (50, 50)
     let initSte = AnimState {
         asCountdown = 1.0,
         asOrder = take (length ary) [0..],
